@@ -5,8 +5,19 @@ buildscript {
     }
 }
 
+
+
+//apply plugin: com.devsmart.crossbuild.plugins.CrossBuildPlugin
 apply plugin: 'crossbuild'
 
 crossbuild {
 
+    targets {
+
+        target {
+            os = 'android'
+            arch = 'armv7a'
+            cmakeArgs = []
+        }
+    }
 }
