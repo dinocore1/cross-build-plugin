@@ -1,0 +1,12 @@
+
+buildscript {
+    dependencies {
+        classpath 'com.devsmart:cross-build:1.0'
+    }
+}
+
+apply plugin: 'crossbuild'
+
+crossbuild {
+
+}

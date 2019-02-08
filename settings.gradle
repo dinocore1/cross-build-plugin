@@ -1,1 +1,3 @@
-rootProject.name = 'cross-build-plugin'
+includeBuild 'plugin'
+
+include ':examples'

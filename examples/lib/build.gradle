@@ -1,0 +1,10 @@
+
+apply plugin: 'crossbuild.cmakelib'
+
+group = 'com.example'
+version = '1.0'
+
+cmakelib {
+    binary = ''
+    exportIncludes = layout.projectDirectory.dir('src/include')
+}
