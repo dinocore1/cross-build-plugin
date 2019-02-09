@@ -12,12 +12,9 @@ apply plugin: 'crossbuild'
 
 crossbuild {
 
-    targets {
-
-        target {
-            os = 'android'
-            arch = 'armv7a'
-            cmakeArgs = []
-        }
+    target {
+        os = 'android'
+        arch = 'armv7a'
+        cmakeArgs = []
     }
 }

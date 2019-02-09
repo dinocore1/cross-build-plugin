@@ -17,8 +17,10 @@ public class CrossBuildExtention {
         this.project = project;
     }
 
-    void targets(Action<? super List<TargetConfig>> action) {
-        //action.execute(targets);
+    void target(Action<? super TargetConfig> action) {
+        TargetConfig config = project.getObjects().newInstance(TargetConfig.class);
+        action.execute(config);
+        targets.add(config);
     }
 
 
