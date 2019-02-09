@@ -127,7 +127,7 @@ class CrossBuildPlugin implements Plugin<Project> {
 
 
         project.afterEvaluate{
-            //createFlintTasks()
+
         }
 
     }

@@ -10,26 +10,35 @@ import org.gradle.api.provider.Provider;
 import org.gradle.language.nativeplatform.internal.PublicationAwareComponent;
 
 import javax.inject.Inject;
+import java.util.List;
 import java.util.Set;
 
-public class CMakeLibraryConfig implements ComponentWithVariants {
+public class CMakeLibrarySpec implements ComponentWithVariants {
 
     private final ObjectFactory objectFactory;
 
-    public final ListProperty<String> cmakeArgs;
+    private final ListProperty<String> mCMakeArgs;
     public final DirectoryProperty sourceDir;
     public final DirectoryProperty exportInclude;
 
     @Inject
-    public CMakeLibraryConfig(ProjectLayout projectLayout, ObjectFactory objectFactory) {
+    public CMakeLibrarySpec(ProjectLayout projectLayout, ObjectFactory objectFactory) {
         this.objectFactory = objectFactory;
 
         this.sourceDir = objectFactory.directoryProperty();
         //default assumes the CMake source dir is the project dir
         this.sourceDir.set(projectLayout.getProjectDirectory());
 
-        this.cmakeArgs = objectFactory.listProperty(String.class);
+        this.mCMakeArgs = objectFactory.listProperty(String.class);
         this.exportInclude = objectFactory.directoryProperty();
+    }
+
+    public ListProperty<String> cmakeArgs() {
+        return mCMakeArgs;
+    }
+
+    public void setCmakeArgs(List<String> args) {
+        mCMakeArgs.set(args);
     }
 
 

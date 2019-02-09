@@ -12,6 +12,7 @@ import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.process.ExecSpec;
 
 import javax.inject.Inject;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +26,7 @@ public class ConfigCMakeTask extends DefaultTask {
 
     @Inject
     public ConfigCMakeTask(ObjectFactory objectFactory) {
-        mCMakeArgs = objectFactory.listProperty(String.class);
+        mCMakeArgs = objectFactory.listProperty(String.class).empty();
         mSrcDir = objectFactory.directoryProperty();
         mBuildDir = objectFactory.directoryProperty();
         mGenerator = objectFactory.property(String.class);
@@ -37,7 +38,9 @@ public class ConfigCMakeTask extends DefaultTask {
         getProject().exec(new Action<ExecSpec>() {
             @Override
             public void execute(ExecSpec execSpec) {
-                execSpec.setWorkingDir(mBuildDir.get());
+                File builddir = mBuildDir.get().getAsFile();
+                builddir.mkdirs();
+                execSpec.setWorkingDir(builddir);
 
                 String cmakeExe = System.getenv("CMAKE_EXECUTABLE");
                 if(cmakeExe == null) {
@@ -51,8 +54,10 @@ public class ConfigCMakeTask extends DefaultTask {
                     args.add(mGenerator.get());
                 }
 
-                for(String arg : mCMakeArgs.get()) {
-                    args.add("-D" + arg);
+                if(mCMakeArgs.isPresent()) {
+                    for (String arg : mCMakeArgs.get()) {
+                        args.add("-D" + arg);
+                    }
                 }
 
                 args.add(mSrcDir.get().getAsFile().getAbsolutePath());
@@ -83,10 +88,6 @@ public class ConfigCMakeTask extends DefaultTask {
     @Input
     public ListProperty<String> getCmakeArgs() {
         return mCMakeArgs;
-    }
-
-    public void setCmakeArgs(List<String> args) {
-        mCMakeArgs.set(args);
     }
 
     @InputFiles

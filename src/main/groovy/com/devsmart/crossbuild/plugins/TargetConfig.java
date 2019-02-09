@@ -8,18 +8,19 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 
 import javax.inject.Inject;
+import java.util.List;
 
 public class TargetConfig {
 
     private ObjectFactory objectFactory;
-    public final ListProperty<String> cmakeArgs;
+    private final ListProperty<String> mCMakeArgs;
     private OS os;
     private Arch arch;
 
     @Inject
     public TargetConfig(ProjectLayout projectLayout, ObjectFactory objectFactory) {
         this.objectFactory = objectFactory;
-        this.cmakeArgs = objectFactory.listProperty(String.class);
+        this.mCMakeArgs = objectFactory.listProperty(String.class);
     }
 
     public void setOs(String osStr) {
@@ -33,4 +34,13 @@ public class TargetConfig {
     public BuildTarget getBuildTarget() {
         return new BuildTarget(os, arch);
     }
+
+    public ListProperty<String> getCmakeArgs() {
+        return mCMakeArgs;
+    }
+
+    public void setCMakeArgs(List<String> args) {
+        mCMakeArgs.set(args);
+    }
+
 }
