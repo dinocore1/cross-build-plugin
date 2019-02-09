@@ -5,10 +5,9 @@ buildscript {
     }
 }
 
-
-
-//apply plugin: com.devsmart.crossbuild.plugins.CrossBuildPlugin
 apply plugin: 'crossbuild'
+
+def android_ndk = System.getenv('ANDROID_NDK')
 
 crossbuild {
 
@@ -23,9 +22,11 @@ crossbuild {
     target {
         os = 'android'
         arch = 'arm64-v8a'
+        /*
         cmakeArgs = ["CMAKE_TOOLCHAIN_FILE=$android_ndk/build/cmake/android.toolchain.cmake",
                      'ANDROID_ABI=arm64-v8a',
                      'ANDROID_NATIVE_API_LEVEL=23']
+        */
     }
 
     target {

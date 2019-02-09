@@ -13,6 +13,7 @@ import org.gradle.process.ExecSpec;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
+import java.util.List;
 
 public class ConfigCMakeTask extends DefaultTask {
 
@@ -82,6 +83,10 @@ public class ConfigCMakeTask extends DefaultTask {
     @Input
     public ListProperty<String> getCmakeArgs() {
         return mCMakeArgs;
+    }
+
+    public void setCmakeArgs(List<String> args) {
+        mCMakeArgs.set(args);
     }
 
     @InputFiles

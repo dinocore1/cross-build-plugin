@@ -1,2 +1,1 @@
-include ':plugin'
-//includeBuild 'examples'
+rootProject.name = 'cross-build'
