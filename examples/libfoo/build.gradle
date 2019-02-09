@@ -11,9 +11,10 @@ group = 'com.example'
 version = '1.0'
 
 
-/*
-cmakelib {
-    binary = ''
-    exportIncludes = layout.projectDirectory.dir('src/include')
+
+cmake {
+    staticlib {
+        binary = 'src/libfoo.a'
+        exportInclude = layout.projectDirectory.dir('src/include')
+    }
 }
-*/

@@ -18,7 +18,7 @@ gradlePlugin {
 
         crossBuildCmake {
             id = 'crossbuild.cmakelib'
-            implementationClass = 'com.devsmart.crossbuild.plugins.CrossBuildCMakeLibPlugin'
+            implementationClass = 'com.devsmart.crossbuild.plugins.cmake.CrossBuildCMakeLibPlugin'
         }
     }
 }
