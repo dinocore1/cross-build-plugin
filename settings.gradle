@@ -1,2 +1,2 @@
 include ':plugin'
-includeBuild 'examples'
+//includeBuild 'examples'
