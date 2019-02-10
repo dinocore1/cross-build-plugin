@@ -32,6 +32,16 @@ public class ConfigCMakeTask extends DefaultTask {
         mGenerator = objectFactory.property(String.class);
     }
 
+    @Override
+    public String getDescription() {
+        return "Configures CMake project";
+    }
+
+    @Override
+    public String getGroup() {
+        return "Configure";
+    }
+
     @TaskAction
     void generateCMakeFiles() {
 

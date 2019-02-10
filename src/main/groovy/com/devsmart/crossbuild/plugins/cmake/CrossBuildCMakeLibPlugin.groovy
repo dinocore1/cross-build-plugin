@@ -15,7 +15,7 @@ import org.gradle.language.nativeplatform.internal.PublicationAwareComponent
 
 class CrossBuildCMakeLibPlugin implements Plugin<Project> {
 
-    private CMakeLibExtention librarySpec
+    CMakeLibExtention librarySpec
 
     @Override
     void apply(Project project) {
@@ -23,12 +23,10 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
 
         def cppApiUsage = project.objects.named(Usage.class, Usage.C_PLUS_PLUS_API)
 
-        librarySpec = project.extensions.create("cmakelib", CMakeLibExtention, project)
+        CMakeLibComponent mainComponent = new CMakeLibComponent(project.providers.provider({project.name}), cppApiUsage, project.configurations.headers)
+        project.components.add(mainComponent)
 
-        CMakeLibComponent cMakeLibComponent = new CMakeLibComponent(project.providers.provider({project.name}), cppApiUsage, project.configurations.headers)
-
-
-        project.components.add(cMakeLibComponent)
+        librarySpec = project.extensions.create("cmakelib", CMakeLibExtention, project, mainComponent)
 
         project.afterEvaluate {
 
@@ -38,17 +36,30 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
                 BuildTarget buildTarget = target.buildTarget
                 String comboName = cMakeLibComponent.baseName.get().capitalize() + buildTarget.os.name.capitalize() + buildTarget.arch.name.capitalize()
 
+                librarySpec.installDir = project.file("build/${comboName}/install")
+
                 ConfigCMakeTask configTask = project.tasks.create("config${comboName}", ConfigCMakeTask)
                 configTask.srcDir = librarySpec.srcDir
                 configTask.buildDir = project.file("build/cmake/${comboName}")
                 configTask.generator = 'Ninja'
                 configTask.cmakeArgs.addAll(target.cmakeArgs)
                 configTask.cmakeArgs.addAll(librarySpec.cmakeArgs)
+                configTask.cmakeArgs.add("CMAKE_INSTALL_PREFIX=${librarySpec.installDir.get().asFile.absolutePath}")
                 configTask.dependsOn(librarySpec.srcDir)
 
                 BuildCMakeTask buildTask = project.tasks.create("assemble${comboName}", BuildCMakeTask)
+                buildTask.group = 'Build'
                 buildTask.generatedBy(configTask)
                 buildTask.buildOutputs = project.fileTree(dir: buildTask.buildDir, include: '**/*')
+
+                BuildCMakeTask installTask = project.tasks.create("install${comboName}", BuildCMakeTask)
+                installTask.group = 'Install'
+                installTask.target = 'install'
+                installTask.generatedBy(configTask)
+                installTask.buildOutputs = project.fileTree(dir: librarySpec.installDir, include: '**/*')
+                installTask.dependsOn(buildTask)
+
+
 
             }
 
@@ -63,7 +74,7 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
 
         CMakeLibComponent(Provider<String> baseName, Usage apiUsage, Configuration api) {
             this.baseName = baseName
-            this.mainVariant = new MainLibraryVariant("api", apiUsage, api)
+            this.mainVariant = new MainLibraryVariant("api", apiUsage, api, null)
         }
 
         @Override
