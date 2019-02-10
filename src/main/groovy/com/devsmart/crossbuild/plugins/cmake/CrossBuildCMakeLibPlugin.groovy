@@ -26,7 +26,7 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
         CMakeLibComponent mainComponent = new CMakeLibComponent(project.providers.provider({project.name}), cppApiUsage, project.configurations.headers)
         project.components.add(mainComponent)
 
-        librarySpec = project.extensions.create("cmakelib", CMakeLibExtention, project, mainComponent)
+        librarySpec = project.extensions.create("cmakelib", CMakeLibExtention, project)
 
         project.afterEvaluate {
 

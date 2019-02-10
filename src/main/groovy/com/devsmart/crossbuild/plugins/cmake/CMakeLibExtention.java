@@ -14,10 +14,9 @@ public class CMakeLibExtention {
     private final DirectoryProperty mInstallDir;
     private final DirectoryProperty mExportInclude;
     private final ListProperty<String> mCMakeArgs;
-    CMakeLibComponent mainComponent;
 
     @Inject
-    public CMakeLibExtention(Project project, CMakeLibComponent mainComponent) {
+    public CMakeLibExtention(Project project) {
         this.project = project;
         mSrcDir = project.getObjects().directoryProperty();
         mInstallDir = project.getObjects().directoryProperty();
