@@ -1,21 +1,23 @@
-package com.devsmart.crossbuild.plugins.cmake;
+package com.devsmart.crossbuild.plugins.cmake
 
-import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.provider.ListProperty;
 
-import javax.inject.Inject;
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.util.Configurable
+import org.gradle.util.ConfigureUtil
 
-class CMakeLibrarySpec {
+class CMakeLibrarySpec implements Configurable<CMakeLibrarySpec> {
 
-    final String name
     DirectoryProperty srcDir
     List<String> cmakeArgs
     DirectoryProperty exportInclude
+    MainCMakeLibraryComponent component
 
-    CMakeLibrarySpec(String name) {
-        this.name = name
+    Closure whenConfigured
+
+    @Override
+    CMakeLibrarySpec configure(Closure cl) {
+        CMakeLibrarySpec retval = ConfigureUtil.configureSelf(cl, this)
+        whenConfigured()
+        return retval
     }
-
 }
