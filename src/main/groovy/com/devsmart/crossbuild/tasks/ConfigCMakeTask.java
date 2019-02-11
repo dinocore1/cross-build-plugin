@@ -22,6 +22,7 @@ public class ConfigCMakeTask extends DefaultTask {
     private final ListProperty<String> mCMakeArgs;
     private final DirectoryProperty mSrcDir;
     private final DirectoryProperty mBuildDir;
+    private final DirectoryProperty mInstallDir;
     private final Property<String> mGenerator;
 
     @Inject
@@ -29,6 +30,7 @@ public class ConfigCMakeTask extends DefaultTask {
         mCMakeArgs = objectFactory.listProperty(String.class).empty();
         mSrcDir = objectFactory.directoryProperty();
         mBuildDir = objectFactory.directoryProperty();
+        mInstallDir = objectFactory.directoryProperty();
         mGenerator = objectFactory.property(String.class);
     }
 
@@ -87,6 +89,11 @@ public class ConfigCMakeTask extends DefaultTask {
     @Internal
     public DirectoryProperty getBuildDir() {
         return mBuildDir;
+    }
+
+    @Internal
+    public DirectoryProperty getInstallDir() {
+        return mInstallDir;
     }
 
     @Input

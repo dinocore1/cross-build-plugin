@@ -129,8 +129,6 @@ class CrossBuildPlugin implements Plugin<Project> {
             }
         }
 
-        project.plugins.apply(NativeBasePlugin)
-
 
     }
 }
