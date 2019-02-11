@@ -1,6 +1,5 @@
 package com.devsmart.crossbuild.plugins.cmake
 
-
 import com.devsmart.crossbuild.DefaultPublishableComponent
 import com.devsmart.crossbuild.plugins.CrossBuildExtention
 import com.devsmart.crossbuild.plugins.CrossBuildPlugin
@@ -10,7 +9,6 @@ import com.devsmart.crossbuild.tasks.ConfigCMakeTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.attributes.Usage
-import org.gradle.language.plugins.NativeBasePlugin
 
 class CrossBuildCMakeLibPlugin implements Plugin<Project> {
 
@@ -30,12 +28,27 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
             mainLib.component.dependencies = project.configurations.headers
             project.components.add(mainLib.component)
 
+            mainLib.component.addVariant(new DefaultPublishableComponent.Builder(project)
+                    .withGroup(project.group)
+                    .withProjectName(project.name)
+                    .withVersion(project.version)
+                    //.withBuildTarget(targetCfg.buildTarget(project.objects))
+                    .withVariantName('debug')
+                    .build())
+
+            mainLib.component.addVariant(new DefaultPublishableComponent.Builder(project)
+                    .withGroup(project.group)
+                    .withProjectName(project.name)
+                    .withVersion(project.version)
+                    //.withBuildTarget(targetCfg.buildTarget(project.objects))
+                    .withVariantName('release')
+                    .build())
+
             crossBuildExt.targets.all {
                 addVariants(project, mainLib, it)
             }
 
-            project.plugins.apply(NativeBasePlugin)
-            project.plugins.apply('maven-publish')
+
         }
     }
 
@@ -46,50 +59,16 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
 
     private void addNamedVariant(Project project, CMakeLibrarySpec mainLib, TargetConfig targetCfg, String variantName) {
 
-        project.configurations {
 
-            "headers${targetCfg.os.capitalize() + targetCfg.arch.capitalize()}" {
-                canBeResolved = false
-                extendsFrom headers
-            }
 
-            "linkRelease${targetCfg.os.capitalize() + targetCfg.arch.capitalize()}" {
-                canBeResolved = false
-                extendsFrom linkRelease
-            }
-
-            "linkDebug${targetCfg.os.capitalize() + targetCfg.arch.capitalize()}" {
-                canBeResolved = false
-                extendsFrom linkDebug
-            }
-
-            "runtimeDebug${targetCfg.os.capitalize() + targetCfg.arch.capitalize()}" {
-                canBeResolved = false
-                extendsFrom runtimeDebug
-            }
-
-            "runtimeRelease${targetCfg.os.capitalize() + targetCfg.arch.capitalize()}" {
-                canBeResolved = false
-                extendsFrom runtimeRelease
-            }
-        }
-
-        mainLib.component.addVariant(new DefaultPublishableComponent.Builder(project)
-                .withGroup(project.group)
-                .withProjectName(project.name)
-                .withVersion(project.version)
-                .withBuildTarget(targetCfg.buildTarget(project.objects))
-                .withVariantName(variantName)
-                .build())
-
-        String comboName = String.format('%s%s%s%s',
-                project.name.capitalize(), variantName.capitalize(), targetCfg.os.capitalize(), targetCfg.arch.capitalize())
+        String comboName = String.format('%s%s%s',
+                variantName.capitalize(), targetCfg.os.capitalize(), targetCfg.arch.capitalize())
 
         File installDir = project.file("build/${comboName}/install")
 
         ConfigCMakeTask configTask = project.tasks.create("config${comboName}", ConfigCMakeTask) {
             srcDir = mainLib.srcDir
-            buildDir = project.file("build/cmake/${comboName}")
+            buildDir = project.file("build/${comboName}/build")
             it.installDir = installDir
             generator = 'Ninja'
             cmakeArgs = ["CMAKE_BUILD_TYPE=${variantName}", targetCfg.cmakeArgs, mainLib.cmakeArgs, "CMAKE_INSTALL_PREFIX=${installDir.absolutePath}"].flatten()

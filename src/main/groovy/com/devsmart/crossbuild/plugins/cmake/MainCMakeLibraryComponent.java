@@ -6,18 +6,15 @@ import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.capabilities.Capability;
 import org.gradle.api.component.ComponentWithVariants;
-import org.gradle.api.component.PublishableComponent;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.internal.DefaultDomainObjectSet;
 import org.gradle.api.internal.component.SoftwareComponentInternal;
 import org.gradle.api.internal.component.UsageContext;
 import org.gradle.api.provider.Provider;
 import org.gradle.internal.impldep.com.google.common.collect.ImmutableSet;
-import org.gradle.language.cpp.internal.DefaultUsageContext;
 import org.gradle.language.nativeplatform.internal.PublicationAwareComponent;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 

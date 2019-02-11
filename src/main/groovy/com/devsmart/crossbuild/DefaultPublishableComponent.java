@@ -60,11 +60,11 @@ public class DefaultPublishableComponent implements PublishableComponent, Softwa
             assert mGroup != null;
             assert mProjectName != null;
             assert mVersion != null;
-            assert mBuildTarget != null;
             assert mVariantName != null;
 
             DefaultPublishableComponent retval = new DefaultPublishableComponent();
-            retval.mName = mVariantName + "_" + mBuildTarget.os + "_" + mBuildTarget.arch;
+            //retval.mName = mVariantName + "_" + mBuildTarget.os + "_" + mBuildTarget.arch;
+            retval.mName = mVariantName;
             retval.mModuleId = DefaultModuleVersionIdentifier.newId(mGroup, mProjectName + "_" + retval.mName, mVersion);
             retval.mUsages = ImmutableSet.of(
                     DefaultUsageContext.createLinkUsage(mProject, mVariantName),
