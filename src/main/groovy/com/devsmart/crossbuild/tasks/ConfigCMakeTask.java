@@ -95,7 +95,7 @@ public class ConfigCMakeTask extends DefaultTask {
         return mGenerator;
     }
 
-    @Input
+    @Input @Optional
     public ListProperty<String> getCmakeArgs() {
         return mCMakeArgs;
     }

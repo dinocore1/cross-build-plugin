@@ -8,12 +8,15 @@ import org.gradle.language.plugins.NativeBasePlugin
 
 class CrossBuildPlugin implements Plugin<Project> {
 
+    public static final String EXTENSION_NAME = 'crossbuild'
+
     CrossBuildExtention config
+
 
     @Override
     void apply(Project project) {
 
-        config = project.extensions.create("crossbuild", CrossBuildExtention, project)
+        config = project.extensions.create(EXTENSION_NAME, CrossBuildExtention, project)
 
 
         /*
@@ -126,14 +129,8 @@ class CrossBuildPlugin implements Plugin<Project> {
             }
         }
 
-
-
         project.plugins.apply(NativeBasePlugin)
 
-
-        project.afterEvaluate{
-
-        }
 
     }
 }
