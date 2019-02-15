@@ -2,6 +2,7 @@ package com.devsmart.crossbuild.plugins;
 
 import com.devsmart.crossbuild.plugins.cmake.CMakeProject;
 import org.gradle.api.DomainObjectSet;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
@@ -24,7 +25,6 @@ import java.util.Set;
 
 public class CrossBuildPlugin implements Plugin<Project> {
 
-    public static final String EXTENSION_NAME = "crossbuild";
     private final TargetMachineFactory targetMachineFactory;
 
     @Inject
@@ -37,24 +37,18 @@ public class CrossBuildPlugin implements Plugin<Project> {
 
         addTargetMachineFactoryAsExtension(project.getExtensions(), targetMachineFactory);
 
-        project.getExtensions().create(EXTENSION_NAME, CrossBuildExtention.class, project);
+        final NamedDomainObjectContainer<TargetConfig> targets = project.container(TargetConfig.class);
+        project.getExtensions().add("targets", targets);
 
         final TaskContainer tasks = project.getTasks();
         final DirectoryProperty buildDirectory = project.getLayout().getBuildDirectory();
         final SoftwareComponentContainer components = project.getComponents();
 
-        addTargetMachinesToComponents(project, components);
         addPublicationsFromVariants(project, components);
     }
 
     private static void addTargetMachineFactoryAsExtension(ExtensionContainer extensions, TargetMachineFactory targetMachineFactory) {
         extensions.add(TargetMachineFactory.class, "machines", targetMachineFactory);
-    }
-
-    private void addTargetMachinesToComponents(final Project project, final SoftwareComponentContainer components) {
-        components.withType(CMakeProject.class, component -> {
-
-        });
     }
 
     private void addPublicationsFromVariants(final Project project, final SoftwareComponentContainer components) {

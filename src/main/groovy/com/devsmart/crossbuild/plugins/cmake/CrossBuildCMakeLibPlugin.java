@@ -10,6 +10,7 @@ import org.gradle.api.Project;
 import org.gradle.api.component.SoftwareComponentContainer;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.language.internal.NativeComponentFactory;
+import org.gradle.platform.base.Binary;
 
 import javax.inject.Inject;
 
@@ -30,7 +31,8 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(CrossBuildPlugin.class);
 
-        final DefaultCMakeProject cmakeProject = componentFactory.newInstance(CMakeProject.class, DefaultCMakeProject.class, "main");
+        //final DefaultCMakeProject cmakeProject = componentFactory.newInstance(CMakeProject.class, DefaultCMakeProject.class, "main");
+        final DefaultCMakeProject cmakeProject = project.getObjects().newInstance(DefaultCMakeProject.class, "main", project);
         project.getExtensions().add(CMakeProject.class, "cmake", cmakeProject);
         project.getComponents().add(cmakeProject);
 
@@ -40,20 +42,18 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
         cmakeProject.getBaseName().convention(project.getName());
         cmakeProject.getSourceDir().convention(layout.getProjectDirectory().dir("src"));
 
-
-
     }
 
     private void addTargetMachinesToCMakeProject(final Project project, final SoftwareComponentContainer components) {
 
-        NamedDomainObjectContainer<TargetConfig> buildTargets = project.getExtensions().findByType(CrossBuildExtention.class).getTargets();
+        NamedDomainObjectContainer<TargetConfig> buildTargets = (NamedDomainObjectContainer<TargetConfig>) project.getExtensions().findByName("targets");
 
         components.withType(CMakeProject.class, component -> {
             buildTargets.all(new Action<TargetConfig>() {
                 @Override
                 public void execute(TargetConfig targetConfig) {
-                    component.getTargetMachines().add(targetConfig.buildTargetMachine(project.getObjects()));
-                    component.getCmakeArgs().addAll(targetConfig.getCmakeArgs());
+                    //component.getTargetMachines().add(targetConfig.getMachine());
+                    //component.getCmakeArgs().addAll(targetConfig.getCmakeArgs());
                 }
             });
         });
