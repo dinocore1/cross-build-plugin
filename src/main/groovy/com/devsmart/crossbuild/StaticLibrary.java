@@ -2,10 +2,14 @@ package com.devsmart.crossbuild;
 
 import com.devsmart.crossbuild.plugins.TargetConfig;
 import com.devsmart.crossbuild.plugins.cmake.ComponentWithCMakeArgs;
+import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.Project;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.language.cpp.internal.NativeVariantIdentity;
+import org.gradle.nativeplatform.TargetMachine;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
@@ -18,12 +22,14 @@ public abstract class StaticLibrary implements ComponentWithVariants, ComponentW
     private final String name;
     private final List<TargetConfig> targets;
     private final ListProperty<String> cmakeArgs;
+    private final NamedDomainObjectContainer<SoftwareComponent> variants;
 
     @Inject
-    public StaticLibrary(String name, ObjectFactory objectFactory) {
+    public StaticLibrary(String name, NamedDomainObjectContainer<SoftwareComponent> variants, ObjectFactory objectFactory) {
         this.name = name;
         this.targets = new ArrayList<>();
         this.cmakeArgs = objectFactory.listProperty(String.class);
+        this.variants = variants;
     }
 
     public String getName() {
@@ -36,12 +42,10 @@ public abstract class StaticLibrary implements ComponentWithVariants, ComponentW
     }
 
     @Override
-    public Set<? extends SoftwareComponent> getVariants() {
-        return null;
+    public Set<SoftwareComponent> getVariants() {
+        return variants;
     }
 
-    public void addTarget(TargetConfig target) {
-        cmakeArgs.addAll(target.getCmakeArgs());
-        targets.add(target);
-    }
+
+
 }

@@ -1,9 +1,11 @@
 package com.devsmart.crossbuild.plugins;
 
 import com.devsmart.crossbuild.plugins.cmake.ComponentWithCMakeArgs;
+import org.gradle.api.Task;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.nativeplatform.TargetMachine;
 
 import javax.inject.Inject;
