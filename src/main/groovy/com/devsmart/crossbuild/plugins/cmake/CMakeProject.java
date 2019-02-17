@@ -1,6 +1,5 @@
 package com.devsmart.crossbuild.plugins.cmake;
 
-import com.devsmart.crossbuild.plugins.TargetConfig;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
@@ -14,6 +13,6 @@ public interface CMakeProject extends PublicationAwareComponent, ComponentWithVa
     SetProperty<String> getCmakeArgs();
 
     NamedDomainObjectContainer<SoftwareComponent> getBinaries();
-    NamedDomainObjectContainer<TargetConfig> getTargets();
+    NamedDomainObjectContainer<CMakeTarget> getTargets();
 
 }

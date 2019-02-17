@@ -1,6 +1,6 @@
 package com.devsmart.crossbuild.plugins;
 
-import com.devsmart.crossbuild.plugins.cmake.CMakeProject;
+import com.devsmart.crossbuild.plugins.cmake.CMakeTarget;
 import org.gradle.api.DomainObjectSet;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -37,7 +37,7 @@ public class CrossBuildPlugin implements Plugin<Project> {
 
         addTargetMachineFactoryAsExtension(project.getExtensions(), targetMachineFactory);
 
-        final NamedDomainObjectContainer<TargetConfig> targets = project.container(TargetConfig.class);
+        final NamedDomainObjectContainer<CMakeTarget> targets = project.container(CMakeTarget.class);
         project.getExtensions().add("targets", targets);
 
         final TaskContainer tasks = project.getTasks();

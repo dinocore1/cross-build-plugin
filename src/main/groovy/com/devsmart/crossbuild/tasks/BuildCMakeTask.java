@@ -4,25 +4,30 @@ import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.*;
 import org.gradle.process.ExecSpec;
 
 import javax.inject.Inject;
+import java.io.File;
 import java.util.ArrayList;
 
 public class BuildCMakeTask extends DefaultTask {
 
     private final DirectoryProperty mBuildDir;
     private final Property<String> mTarget;
-    private FileCollection mBuildOutputs;
+    private ListProperty<File> mBuildOutputs;
     private FileCollection mMakefiles;
 
     @Inject
     public BuildCMakeTask(ObjectFactory objectFactory) {
         mBuildDir = objectFactory.directoryProperty();
         mTarget = objectFactory.property(String.class);
+        mBuildOutputs = objectFactory.listProperty(File.class);
+
     }
 
     @TaskAction
@@ -68,13 +73,10 @@ public class BuildCMakeTask extends DefaultTask {
     }
 
     @OutputFiles
-    public FileCollection getBuildOutputs() {
+    public ListProperty<File> getBuildOutputs() {
         return mBuildOutputs;
     }
 
-    public void setBuildOutputs(FileCollection outputs) {
-        mBuildOutputs = outputs;
-    }
 
 
     public void generatedBy(ConfigCMakeTask configTask) {

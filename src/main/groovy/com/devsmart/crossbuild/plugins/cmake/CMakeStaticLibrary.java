@@ -1,24 +1,33 @@
 package com.devsmart.crossbuild.plugins.cmake;
 
+import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.component.ComponentWithVariants;
+import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 
 import javax.inject.Inject;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
-public class CMakeStaticLibrary implements ComponentWithCMakeArgs {
+public abstract class CMakeStaticLibrary implements ComponentWithVariants, ComponentWithCMakeArgs {
+
 
     private final String name;
+    private final List<CMakeTarget> targets;
     private final ListProperty<String> cmakeArgs;
-
+    private final NamedDomainObjectContainer<SoftwareComponent> variants;
 
     @Inject
-    public CMakeStaticLibrary(String variantName, ObjectFactory objectFactory) {
-        this.name = variantName;
-        cmakeArgs = objectFactory.listProperty(String.class);
+    public CMakeStaticLibrary(String name, NamedDomainObjectContainer<SoftwareComponent> variants, ObjectFactory objectFactory) {
+        this.name = name;
+        this.variants = variants;
+        this.targets = new ArrayList<>();
+        this.cmakeArgs = objectFactory.listProperty(String.class);
 
     }
 
-    @Override
     public String getName() {
         return name;
     }
@@ -27,5 +36,12 @@ public class CMakeStaticLibrary implements ComponentWithCMakeArgs {
     public ListProperty<String> getCmakeArgs() {
         return cmakeArgs;
     }
+
+    @Override
+    public Set<SoftwareComponent> getVariants() {
+        return variants;
+    }
+
+
 
 }

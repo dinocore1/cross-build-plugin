@@ -1,8 +1,6 @@
 package com.devsmart.crossbuild.plugins.cmake;
 
-import com.devsmart.crossbuild.plugins.CrossBuildExtention;
 import com.devsmart.crossbuild.plugins.CrossBuildPlugin;
-import com.devsmart.crossbuild.plugins.TargetConfig;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -10,7 +8,6 @@ import org.gradle.api.Project;
 import org.gradle.api.component.SoftwareComponentContainer;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.language.internal.NativeComponentFactory;
-import org.gradle.platform.base.Binary;
 
 import javax.inject.Inject;
 
@@ -46,12 +43,12 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
 
     private void addTargetMachinesToCMakeProject(final Project project, final SoftwareComponentContainer components) {
 
-        NamedDomainObjectContainer<TargetConfig> buildTargets = (NamedDomainObjectContainer<TargetConfig>) project.getExtensions().findByName("targets");
+        NamedDomainObjectContainer<CMakeTarget> buildTargets = (NamedDomainObjectContainer<CMakeTarget>) project.getExtensions().findByName("targets");
 
         components.withType(CMakeProject.class, component -> {
-            buildTargets.all(new Action<TargetConfig>() {
+            buildTargets.all(new Action<CMakeTarget>() {
                 @Override
-                public void execute(TargetConfig targetConfig) {
+                public void execute(CMakeTarget targetConfig) {
                     //component.getTargetMachines().add(targetConfig.getMachine());
                     //component.getCmakeArgs().addAll(targetConfig.getCmakeArgs());
                 }

@@ -1,7 +1,7 @@
 package com.devsmart.crossbuild.plugins.cmake;
 
-import com.devsmart.crossbuild.StaticLibrary;
-import com.devsmart.crossbuild.plugins.TargetConfig;
+import com.devsmart.crossbuild.plugins.StaticLibrary;
+import com.devsmart.crossbuild.tasks.BuildCMakeTask;
 import com.devsmart.crossbuild.tasks.ConfigCMakeTask;
 import groovy.lang.Closure;
 import org.gradle.api.Action;
@@ -11,20 +11,15 @@ import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.internal.CollectionCallbackActionDecorator;
-import org.gradle.api.internal.DefaultDomainObjectSet;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
-import org.gradle.internal.impldep.com.google.common.collect.Lists;
-import org.gradle.internal.impldep.com.google.common.collect.Sets;
 import org.gradle.language.cpp.internal.NativeVariantIdentity;
 import org.gradle.nativeplatform.TargetMachine;
-import org.gradle.platform.base.Binary;
 import org.gradle.util.ConfigureUtil;
 
 import javax.inject.Inject;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
@@ -37,7 +32,7 @@ public class DefaultCMakeProject implements CMakeProject {
     private final SetProperty<String> cmakeArgs;
     private final Property<String> baseName;
     private final NamedDomainObjectContainer<SoftwareComponent> binaries;
-    private final NamedDomainObjectContainer<TargetConfig> targets;
+    private final NamedDomainObjectContainer<CMakeTarget> targets;
     private final Project project;
     private final Provider<String> groupName;
     private final Provider<String> versionName;
@@ -46,7 +41,7 @@ public class DefaultCMakeProject implements CMakeProject {
     public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory, CollectionCallbackActionDecorator decorator) {
         this.name = name;
         this.binaries = project.container(SoftwareComponent.class);
-        this.targets = project.container(TargetConfig.class);
+        this.targets = project.container(CMakeTarget.class);
         this.project = project;
         mObjectFactory = objectFactory;
         sourceDir = objectFactory.directoryProperty();
@@ -84,7 +79,7 @@ public class DefaultCMakeProject implements CMakeProject {
     }
 
     @Override
-    public NamedDomainObjectContainer<TargetConfig> getTargets() {
+    public NamedDomainObjectContainer<CMakeTarget> getTargets() {
         return targets;
     }
 
@@ -108,42 +103,69 @@ public class DefaultCMakeProject implements CMakeProject {
         return this;
     }
 
-    public void target(String name, Closure c) {
-        final TargetConfig newTarget = mObjectFactory.newInstance(TargetConfig.class, name);
+    public CMakeTarget target(String name, Closure c) {
+        final CMakeTarget newTarget = mObjectFactory.newInstance(CMakeTarget.class, name);
         ConfigureUtil.configure(c, newTarget);
-        targets.add(newTarget);
 
         TargetMachine machine = newTarget.getMachine().get();
         String variantName = machine.getOperatingSystemFamily().getName() + machine.getArchitecture().getName();
 
-        ConfigCMakeTask configTask = mObjectFactory.newInstance(ConfigCMakeTask.class);
-        configTask.getBuildDir().set(project.getLayout().getBuildDirectory().dir(variantName));
-        configTask.getCmakeArgs().addAll(cmakeArgs);
-        configTask.getCmakeArgs().addAll(newTarget.getCmakeArgs());
 
-        binaries.withType(StaticLibrary.class, new Action<StaticLibrary>() {
+        newTarget.getBuildDir().set(project.getLayout().getBuildDirectory().dir(variantName + "/build"));
+        newTarget.getInstallDir().set(project.getLayout().getBuildDirectory().dir(variantName + "/install"));
+
+
+        final ConfigCMakeTask configTask = project.getTasks().create(String.format("config%s", variantName), ConfigCMakeTask.class, task -> {
+            task.getSrcDir().set(sourceDir);
+            task.getBuildDir().set(newTarget.getBuildDir());
+            task.getInstallDir().set(newTarget.getInstallDir());
+            task.getCmakeArgs().addAll(cmakeArgs);
+            task.getCmakeArgs().addAll(newTarget.getCmakeArgs());
+            task.getCmakeArgs().add(project.provider( () -> {
+                return "CMAKE_INSTALL_PREFIX=" + task.getInstallDir().getAsFile().get().getAbsolutePath();
+            }));
+
+            task.getGenerator().set("Ninja");
+
+        });
+        newTarget.setConfigTask(configTask);
+
+        final BuildCMakeTask assembleTask = project.getTasks().create(String.format("assemble%s", variantName), BuildCMakeTask.class, task -> {
+            task.generatedBy(configTask);
+            task.getBuildOutputs().convention(project.fileTree(configTask.getBuildDir()));
+
+        });
+        newTarget.setAssembleTask(assembleTask);
+
+        final BuildCMakeTask installTask = project.getTasks().create(String.format("install%s", variantName), BuildCMakeTask.class, task -> {
+            task.generatedBy(configTask);
+            task.getTarget().set("install");
+            task.getBuildOutputs().convention(project.fileTree(configTask.getInstallDir()));
+            task.dependsOn(assembleTask);
+        });
+        newTarget.setInstallTask(installTask);
+
+        binaries.withType(CMakeStaticLibrary.class, new Action<CMakeStaticLibrary>() {
             @Override
-            public void execute(StaticLibrary staticLibrary) {
-
-
+            public void execute(CMakeStaticLibrary staticLibrary) {
 
                 NativeVariantIdentity id = new NativeVariantIdentity(variantName, baseName, groupName, versionName, false, false, machine, null, null);
 
-                CMakeStaticLibrary newLib = mObjectFactory.newInstance(CMakeStaticLibrary.class, variantName);
-                newLib.getCmakeArgs().addAll(cmakeArgs);
-                newLib.getCmakeArgs().addAll(newTarget.getCmakeArgs());
-                staticLibrary.getVariants().add(newLib);
-
+                StaticLibrary newLib = mObjectFactory.newInstance(StaticLibrary.class, variantName, id);
 
             }
         });
 
+        targets.add(newTarget);
+        return newTarget;
+
     }
 
-    public void staticLib(String name, Closure c) {
-        final StaticLibrary newLib = mObjectFactory.newInstance(StaticLibrary.class, name, project.container(SoftwareComponent.class));
+    public CMakeStaticLibrary staticLib(String name, Closure c) {
+        final CMakeStaticLibrary newLib = mObjectFactory.newInstance(CMakeStaticLibrary.class, name, project.container(SoftwareComponent.class));
         ConfigureUtil.configure(c, newLib);
         binaries.add(newLib);
+        return newLib;
     }
 
 
