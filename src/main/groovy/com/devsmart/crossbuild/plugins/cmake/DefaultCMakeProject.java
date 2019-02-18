@@ -6,20 +6,27 @@ import com.devsmart.crossbuild.tasks.BuildCMakeTask;
 import com.devsmart.crossbuild.tasks.ConfigCMakeTask;
 import groovy.lang.Closure;
 import org.gradle.api.Action;
+import org.gradle.api.DomainObjectSet;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleIdentifier;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.internal.CollectionCallbackActionDecorator;
+import org.gradle.api.internal.DefaultDomainObjectSet;
 import org.gradle.api.internal.artifacts.DefaultModuleIdentifier;
+import org.gradle.api.internal.component.UsageContext;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.internal.impldep.com.google.common.collect.Sets;
 import org.gradle.language.cpp.internal.NativeVariantIdentity;
+import org.gradle.language.internal.DefaultLibraryDependencies;
 import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.nativeplatform.TargetMachine;
 import org.gradle.util.ConfigureUtil;
@@ -36,17 +43,18 @@ public class DefaultCMakeProject implements CMakeProject {
     private final DirectoryProperty sourceDir;
     private final SetProperty<String> cmakeArgs;
     private final Property<String> baseName;
-    private final NamedDomainObjectContainer<SoftwareComponent> binaries;
+    private final DefaultDomainObjectSet<SoftwareComponent> binaries;
     private final NamedDomainObjectContainer<CMakeTarget> targets;
     private final Project project;
     private final Provider<String> groupName;
     private final Provider<String> versionName;
     private final Names names;
+    private final DefaultLibraryDependencies dependencies;
 
     @Inject
-    public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory) {
+    public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory, CollectionCallbackActionDecorator decorator) {
         this.name = name;
-        this.binaries = project.container(SoftwareComponent.class);
+        this.binaries = new DefaultDomainObjectSet<SoftwareComponent>(SoftwareComponent.class, decorator);
         this.targets = project.container(CMakeTarget.class);
         this.project = project;
         this.names = Names.of(name);
@@ -68,6 +76,8 @@ public class DefaultCMakeProject implements CMakeProject {
                 return (String) project.getVersion();
             }
         });
+
+        dependencies = objectFactory.newInstance(DefaultLibraryDependencies.class, getNames().withSuffix("implementation"), getNames().withSuffix("api"));
     }
 
     @Override
@@ -83,11 +93,6 @@ public class DefaultCMakeProject implements CMakeProject {
     @Override
     public SetProperty<String> getCmakeArgs() {
         return cmakeArgs;
-    }
-
-    @Override
-    public NamedDomainObjectContainer<SoftwareComponent> getBinaries() {
-        return binaries;
     }
 
     @Override
@@ -128,7 +133,7 @@ public class DefaultCMakeProject implements CMakeProject {
         newTarget.getBuildDir().set(targetBuildDir.dir("build"));
         newTarget.getInstallDir().set(targetBuildDir.dir("install"));
 
-        final ConfigCMakeTask configTask = project.getTasks().create(targetName.withPrefix("config"), ConfigCMakeTask.class, task -> {
+        final ConfigCMakeTask configTask = project.getTasks().create(targetName.getTaskName("config"), ConfigCMakeTask.class, task -> {
             task.getSrcDir().set(sourceDir);
             task.getBuildDir().set(newTarget.getBuildDir());
             task.getInstallDir().set(newTarget.getInstallDir());
@@ -143,14 +148,14 @@ public class DefaultCMakeProject implements CMakeProject {
         });
         newTarget.setConfigTask(configTask);
 
-        final BuildCMakeTask assembleTask = project.getTasks().create(targetName.withPrefix("assemble"), BuildCMakeTask.class, task -> {
+        final BuildCMakeTask assembleTask = project.getTasks().create(targetName.getTaskName("assemble"), BuildCMakeTask.class, task -> {
             task.generatedBy(configTask);
             task.getBuildOutputs().convention(project.fileTree(configTask.getBuildDir()));
 
         });
         newTarget.setAssembleTask(assembleTask);
 
-        final BuildCMakeTask installTask = project.getTasks().create(targetName.withPrefix("install"), BuildCMakeTask.class, task -> {
+        final BuildCMakeTask installTask = project.getTasks().create(targetName.getTaskName("install"), BuildCMakeTask.class, task -> {
             task.generatedBy(configTask);
             task.getTarget().set("install");
             task.getBuildOutputs().convention(project.fileTree(configTask.getInstallDir()));
@@ -159,13 +164,14 @@ public class DefaultCMakeProject implements CMakeProject {
         newTarget.setInstallTask(installTask);
 
         if(newTarget.getExportHeaders().isPresent()) {
-            ModuleVersionIdentifier id = createModuleVersionId(project.provider(() -> {
-                return getNames().append(targetName.getName()).append("api-headers").getName();
-            }));
 
-            ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, id);
+            Names headerName = Names.of(targetName.withPrefix("headers"));
+            NativeVariantIdentity id = new NativeVariantIdentity(headerName.getName(), baseName, groupName, versionName, false, false, machine, null, null);
+
+
+            ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, headerName, id, getImplementationDependencies());
             exportHeaders.getIncludeDir().set(newTarget.getExportHeaders());
-            exportHeaders.setTask(project.getTasks().create(targetName.withPrefix("zipHeaders"), Zip.class, task -> {
+            exportHeaders.setTask(project.getTasks().create(headerName.getTaskName("zip"), Zip.class, task -> {
                 task.from(exportHeaders.getIncludeDir());
                 task.getDestinationDirectory().set(targetBuildDir);
                 task.getArchiveBaseName().set(getBaseName().get());
@@ -173,6 +179,8 @@ public class DefaultCMakeProject implements CMakeProject {
                 task.dependsOn(installTask);
 
             }));
+
+            binaries.add(exportHeaders);
 
             newTarget.getBinaries().add(exportHeaders);
 
@@ -202,6 +210,10 @@ public class DefaultCMakeProject implements CMakeProject {
         return newLib;
     }
 
+    public Configuration getImplementationDependencies() {
+        return dependencies.getImplementationDependencies();
+    }
+
     private ModuleVersionIdentifier createModuleVersionId(final Provider<String> name) {
         final ModuleIdentifier id = DefaultModuleIdentifier.newId((String) project.getGroup(), project.getName());
 
@@ -229,4 +241,8 @@ public class DefaultCMakeProject implements CMakeProject {
     }
 
 
+    @Override
+    public Set<? extends UsageContext> getUsages() {
+        return null;
+    }
 }

@@ -5,7 +5,11 @@ import org.gradle.api.DomainObjectSet;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.PublishableComponent;
 import org.gradle.api.component.SoftwareComponent;
@@ -17,6 +21,8 @@ import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.internal.publication.MavenPublicationInternal;
 import org.gradle.api.publish.maven.internal.publisher.MutableMavenProjectIdentity;
 import org.gradle.api.tasks.TaskContainer;
+import org.gradle.internal.Cast;
+import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.language.nativeplatform.internal.PublicationAwareComponent;
 import org.gradle.nativeplatform.TargetMachineFactory;
 
@@ -43,8 +49,33 @@ public class CrossBuildPlugin implements Plugin<Project> {
         final TaskContainer tasks = project.getTasks();
         final DirectoryProperty buildDirectory = project.getLayout().getBuildDirectory();
         final SoftwareComponentContainer components = project.getComponents();
+        final ConfigurationContainer configurations = project.getConfigurations();
+
+        addOutgoingConfigurationForCompileUsage(components, configurations);
 
         addPublicationsFromVariants(project, components);
+    }
+
+    private void addOutgoingConfigurationForCompileUsage(SoftwareComponentContainer components, ConfigurationContainer configurations) {
+        components.withType(ConfigurableComponentWithCompileUsage.class, component -> {
+            Names names = component.getNames();
+            Configuration compileElements = configurations.create(names.withSuffix("compileElements"));
+            compileElements.extendsFrom(component.getImplementationDependencies());
+            compileElements.setCanBeResolved(false);
+            AttributeContainer attributes = component.getCompileAttributes();
+            copyAttributesTo(attributes, compileElements);
+            //compileElements.getOutgoing().artifact(component.getLinkFile());
+            component.getCompileElements().set(compileElements);
+
+        });
+
+    }
+
+    private void copyAttributesTo(AttributeContainer attributes, Configuration linkElements) {
+        for (Attribute<?> attribute : attributes.keySet()) {
+            Object value = attributes.getAttribute(attribute);
+            linkElements.getAttributes().attribute(Cast.<Attribute<Object>>uncheckedCast(attribute), value);
+        }
     }
 
     private static void addTargetMachineFactoryAsExtension(ExtensionContainer extensions, TargetMachineFactory targetMachineFactory) {
