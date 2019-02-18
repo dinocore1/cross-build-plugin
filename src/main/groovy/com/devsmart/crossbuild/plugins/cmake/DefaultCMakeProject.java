@@ -1,5 +1,6 @@
 package com.devsmart.crossbuild.plugins.cmake;
 
+import com.devsmart.crossbuild.plugins.ExportHeaders;
 import com.devsmart.crossbuild.plugins.StaticLibrary;
 import com.devsmart.crossbuild.tasks.BuildCMakeTask;
 import com.devsmart.crossbuild.tasks.ConfigCMakeTask;
@@ -7,15 +8,19 @@ import groovy.lang.Closure;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.ModuleIdentifier;
+import org.gradle.api.artifacts.ModuleVersionIdentifier;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.internal.CollectionCallbackActionDecorator;
+import org.gradle.api.internal.artifacts.DefaultModuleIdentifier;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.language.cpp.internal.NativeVariantIdentity;
+import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.nativeplatform.TargetMachine;
 import org.gradle.util.ConfigureUtil;
 
@@ -36,13 +41,15 @@ public class DefaultCMakeProject implements CMakeProject {
     private final Project project;
     private final Provider<String> groupName;
     private final Provider<String> versionName;
+    private final Names names;
 
     @Inject
-    public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory, CollectionCallbackActionDecorator decorator) {
+    public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory) {
         this.name = name;
         this.binaries = project.container(SoftwareComponent.class);
         this.targets = project.container(CMakeTarget.class);
         this.project = project;
+        this.names = Names.of(name);
         mObjectFactory = objectFactory;
         sourceDir = objectFactory.directoryProperty();
         cmakeArgs = objectFactory.setProperty(String.class);
@@ -61,6 +68,11 @@ public class DefaultCMakeProject implements CMakeProject {
                 return (String) project.getVersion();
             }
         });
+    }
+
+    @Override
+    public Names getNames() {
+        return names;
     }
 
     @Override
@@ -104,18 +116,19 @@ public class DefaultCMakeProject implements CMakeProject {
     }
 
     public CMakeTarget target(String name, Closure c) {
-        final CMakeTarget newTarget = mObjectFactory.newInstance(CMakeTarget.class, name);
+        final CMakeTarget newTarget = mObjectFactory.newInstance(CMakeTarget.class, name, project.container(SoftwareComponent.class));
         ConfigureUtil.configure(c, newTarget);
 
         TargetMachine machine = newTarget.getMachine().get();
-        String variantName = machine.getOperatingSystemFamily().getName() + machine.getArchitecture().getName();
+        Names targetName = Names.of(machine.getOperatingSystemFamily().getName()).append(machine.getArchitecture().getName());
 
+        DirectoryProperty targetBuildDir = mObjectFactory.directoryProperty();
+        targetBuildDir.set(project.getLayout().getBuildDirectory().dir(targetName.getDirName()));
 
-        newTarget.getBuildDir().set(project.getLayout().getBuildDirectory().dir(variantName + "/build"));
-        newTarget.getInstallDir().set(project.getLayout().getBuildDirectory().dir(variantName + "/install"));
+        newTarget.getBuildDir().set(targetBuildDir.dir("build"));
+        newTarget.getInstallDir().set(targetBuildDir.dir("install"));
 
-
-        final ConfigCMakeTask configTask = project.getTasks().create(String.format("config%s", variantName), ConfigCMakeTask.class, task -> {
+        final ConfigCMakeTask configTask = project.getTasks().create(targetName.withPrefix("config"), ConfigCMakeTask.class, task -> {
             task.getSrcDir().set(sourceDir);
             task.getBuildDir().set(newTarget.getBuildDir());
             task.getInstallDir().set(newTarget.getInstallDir());
@@ -125,19 +138,19 @@ public class DefaultCMakeProject implements CMakeProject {
                 return "CMAKE_INSTALL_PREFIX=" + task.getInstallDir().getAsFile().get().getAbsolutePath();
             }));
 
-            task.getGenerator().set("Ninja");
+            task.getGenerator().set(newTarget.getGenerator());
 
         });
         newTarget.setConfigTask(configTask);
 
-        final BuildCMakeTask assembleTask = project.getTasks().create(String.format("assemble%s", variantName), BuildCMakeTask.class, task -> {
+        final BuildCMakeTask assembleTask = project.getTasks().create(targetName.withPrefix("assemble"), BuildCMakeTask.class, task -> {
             task.generatedBy(configTask);
             task.getBuildOutputs().convention(project.fileTree(configTask.getBuildDir()));
 
         });
         newTarget.setAssembleTask(assembleTask);
 
-        final BuildCMakeTask installTask = project.getTasks().create(String.format("install%s", variantName), BuildCMakeTask.class, task -> {
+        final BuildCMakeTask installTask = project.getTasks().create(targetName.withPrefix("install"), BuildCMakeTask.class, task -> {
             task.generatedBy(configTask);
             task.getTarget().set("install");
             task.getBuildOutputs().convention(project.fileTree(configTask.getInstallDir()));
@@ -145,13 +158,34 @@ public class DefaultCMakeProject implements CMakeProject {
         });
         newTarget.setInstallTask(installTask);
 
+        if(newTarget.getExportHeaders().isPresent()) {
+            ModuleVersionIdentifier id = createModuleVersionId(project.provider(() -> {
+                return getNames().append(targetName.getName()).append("api-headers").getName();
+            }));
+
+            ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, id);
+            exportHeaders.getIncludeDir().set(newTarget.getExportHeaders());
+            exportHeaders.setTask(project.getTasks().create(targetName.withPrefix("zipHeaders"), Zip.class, task -> {
+                task.from(exportHeaders.getIncludeDir());
+                task.getDestinationDirectory().set(targetBuildDir);
+                task.getArchiveBaseName().set(getBaseName().get());
+                task.getArchiveClassifier().set("api-headers");
+                task.dependsOn(installTask);
+
+            }));
+
+            newTarget.getBinaries().add(exportHeaders);
+
+        }
+
         binaries.withType(CMakeStaticLibrary.class, new Action<CMakeStaticLibrary>() {
             @Override
             public void execute(CMakeStaticLibrary staticLibrary) {
 
-                NativeVariantIdentity id = new NativeVariantIdentity(variantName, baseName, groupName, versionName, false, false, machine, null, null);
+                NativeVariantIdentity id = new NativeVariantIdentity(targetName.getName(), baseName, groupName, versionName, false, false, machine, null, null);
 
-                StaticLibrary newLib = mObjectFactory.newInstance(StaticLibrary.class, variantName, id);
+
+                StaticLibrary newLib = mObjectFactory.newInstance(StaticLibrary.class, getNames().append(id.getName()), id);
 
             }
         });
@@ -166,6 +200,32 @@ public class DefaultCMakeProject implements CMakeProject {
         ConfigureUtil.configure(c, newLib);
         binaries.add(newLib);
         return newLib;
+    }
+
+    private ModuleVersionIdentifier createModuleVersionId(final Provider<String> name) {
+        final ModuleIdentifier id = DefaultModuleIdentifier.newId((String) project.getGroup(), project.getName());
+
+        return new ModuleVersionIdentifier() {
+            @Override
+            public String getVersion() {
+                return (String) project.getVersion();
+            }
+
+            @Override
+            public String getGroup() {
+                return id.getGroup();
+            }
+
+            @Override
+            public String getName() {
+                return name.get();
+            }
+
+            @Override
+            public ModuleIdentifier getModule() {
+                return id;
+            }
+        };
     }
 
 

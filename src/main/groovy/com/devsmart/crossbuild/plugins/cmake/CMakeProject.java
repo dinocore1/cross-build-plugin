@@ -5,9 +5,10 @@ import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.language.nativeplatform.internal.ComponentWithNames;
 import org.gradle.language.nativeplatform.internal.PublicationAwareComponent;
 
-public interface CMakeProject extends PublicationAwareComponent, ComponentWithVariants {
+public interface CMakeProject extends PublicationAwareComponent, ComponentWithVariants, ComponentWithNames {
 
     DirectoryProperty getSourceDir();
     SetProperty<String> getCmakeArgs();
