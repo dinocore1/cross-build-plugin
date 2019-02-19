@@ -12,6 +12,8 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleIdentifier;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
+import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.DirectoryProperty;
@@ -25,7 +27,9 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.internal.impldep.com.google.common.collect.Sets;
+import org.gradle.language.cpp.internal.DefaultUsageContext;
 import org.gradle.language.cpp.internal.NativeVariantIdentity;
+import org.gradle.language.internal.DefaultComponentDependencies;
 import org.gradle.language.internal.DefaultLibraryDependencies;
 import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.nativeplatform.TargetMachine;
@@ -34,6 +38,8 @@ import org.gradle.util.ConfigureUtil;
 import javax.inject.Inject;
 import java.util.Set;
 import java.util.concurrent.Callable;
+
+import static org.gradle.language.cpp.CppBinary.LINKAGE_ATTRIBUTE;
 
 public class DefaultCMakeProject implements CMakeProject {
 
@@ -50,6 +56,7 @@ public class DefaultCMakeProject implements CMakeProject {
     private final Provider<String> versionName;
     private final Names names;
     private final DefaultLibraryDependencies dependencies;
+    private final Configuration apiElements;
 
     @Inject
     public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory, CollectionCallbackActionDecorator decorator) {
@@ -78,6 +85,12 @@ public class DefaultCMakeProject implements CMakeProject {
         });
 
         dependencies = objectFactory.newInstance(DefaultLibraryDependencies.class, getNames().withSuffix("implementation"), getNames().withSuffix("api"));
+        Usage apiUsage = objectFactory.named(Usage.class, Usage.C_PLUS_PLUS_API);
+        apiElements = project.getConfigurations().create(getNames().withSuffix("cppApiElements"));
+        apiElements.extendsFrom(dependencies.getApiDependencies());
+        apiElements.setCanBeResolved(false);
+        apiElements.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, apiUsage);
+
     }
 
     @Override
@@ -166,8 +179,8 @@ public class DefaultCMakeProject implements CMakeProject {
         if(newTarget.getExportHeaders().isPresent()) {
 
             Names headerName = Names.of(targetName.withPrefix("headers"));
-            NativeVariantIdentity id = new NativeVariantIdentity(headerName.getName(), baseName, groupName, versionName, false, false, machine, null, null);
 
+            NativeVariantIdentity id = new NativeVariantIdentity(headerName.getName(), baseName, groupName, versionName, false, false, machine, null, null);
 
             ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, headerName, id, getImplementationDependencies());
             exportHeaders.getIncludeDir().set(newTarget.getExportHeaders());
@@ -181,6 +194,7 @@ public class DefaultCMakeProject implements CMakeProject {
             }));
 
             binaries.add(exportHeaders);
+            project.getComponents().add(exportHeaders);
 
             newTarget.getBinaries().add(exportHeaders);
 
