@@ -6,13 +6,12 @@ import com.devsmart.crossbuild.tasks.BuildCMakeTask;
 import com.devsmart.crossbuild.tasks.ConfigCMakeTask;
 import groovy.lang.Closure;
 import org.gradle.api.Action;
-import org.gradle.api.DomainObjectSet;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleIdentifier;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
-import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.artifacts.PublishArtifact;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
@@ -20,16 +19,18 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.internal.CollectionCallbackActionDecorator;
 import org.gradle.api.internal.DefaultDomainObjectSet;
 import org.gradle.api.internal.artifacts.DefaultModuleIdentifier;
+import org.gradle.api.internal.artifacts.dsl.LazyPublishArtifact;
+import org.gradle.api.internal.artifacts.publish.ArchivePublishArtifact;
+import org.gradle.api.internal.attributes.AttributeContainerInternal;
+import org.gradle.api.internal.attributes.ImmutableAttributesFactory;
 import org.gradle.api.internal.component.UsageContext;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.bundling.Zip;
-import org.gradle.internal.impldep.com.google.common.collect.Sets;
 import org.gradle.language.cpp.internal.DefaultUsageContext;
 import org.gradle.language.cpp.internal.NativeVariantIdentity;
-import org.gradle.language.internal.DefaultComponentDependencies;
 import org.gradle.language.internal.DefaultLibraryDependencies;
 import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.nativeplatform.TargetMachine;
@@ -38,8 +39,6 @@ import org.gradle.util.ConfigureUtil;
 import javax.inject.Inject;
 import java.util.Set;
 import java.util.concurrent.Callable;
-
-import static org.gradle.language.cpp.CppBinary.LINKAGE_ATTRIBUTE;
 
 public class DefaultCMakeProject implements CMakeProject {
 
@@ -57,10 +56,12 @@ public class DefaultCMakeProject implements CMakeProject {
     private final Names names;
     private final DefaultLibraryDependencies dependencies;
     private final Configuration apiElements;
+    private final ImmutableAttributesFactory attributesFactory;
 
     @Inject
-    public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory, CollectionCallbackActionDecorator decorator) {
+    public DefaultCMakeProject(String name, Project project, ObjectFactory objectFactory, ImmutableAttributesFactory attributesFactory, CollectionCallbackActionDecorator decorator) {
         this.name = name;
+        this.attributesFactory = attributesFactory;
         this.binaries = new DefaultDomainObjectSet<SoftwareComponent>(SoftwareComponent.class, decorator);
         this.targets = project.container(CMakeTarget.class);
         this.project = project;
@@ -180,7 +181,13 @@ public class DefaultCMakeProject implements CMakeProject {
 
             Names headerName = Names.of(targetName.withPrefix("headers"));
 
-            NativeVariantIdentity id = new NativeVariantIdentity(headerName.getName(), baseName, groupName, versionName, false, false, machine, null, null);
+            Usage linkUsage = mObjectFactory.named(Usage.class, Usage.NATIVE_LINK);
+            AttributeContainerInternal linkAttributes = attributesFactory.mutable();
+            linkAttributes.attribute(Usage.USAGE_ATTRIBUTE, linkUsage);
+            DefaultUsageContext linkUsageContext = new DefaultUsageContext(versionName.get() + "Link", linkUsage, linkAttributes);
+
+
+            NativeVariantIdentity id = new NativeVariantIdentity(headerName.getName(), baseName, groupName, versionName, false, false, machine, linkUsageContext, null);
 
             ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, headerName, id, getImplementationDependencies());
             exportHeaders.getIncludeDir().set(newTarget.getExportHeaders());
@@ -193,8 +200,11 @@ public class DefaultCMakeProject implements CMakeProject {
 
             }));
 
+
             binaries.add(exportHeaders);
             project.getComponents().add(exportHeaders);
+
+            exportHeaders.getCompileElements().get().getArtifacts().add(new ArchivePublishArtifact(exportHeaders.getTask()));
 
             newTarget.getBinaries().add(exportHeaders);
 
