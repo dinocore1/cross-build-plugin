@@ -11,7 +11,6 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleIdentifier;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
-import org.gradle.api.artifacts.PublishArtifact;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
@@ -19,20 +18,20 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.internal.CollectionCallbackActionDecorator;
 import org.gradle.api.internal.DefaultDomainObjectSet;
 import org.gradle.api.internal.artifacts.DefaultModuleIdentifier;
-import org.gradle.api.internal.artifacts.dsl.LazyPublishArtifact;
 import org.gradle.api.internal.artifacts.publish.ArchivePublishArtifact;
 import org.gradle.api.internal.attributes.AttributeContainerInternal;
 import org.gradle.api.internal.attributes.ImmutableAttributesFactory;
 import org.gradle.api.internal.component.UsageContext;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.language.cpp.internal.DefaultUsageContext;
 import org.gradle.language.cpp.internal.NativeVariantIdentity;
 import org.gradle.language.internal.DefaultLibraryDependencies;
 import org.gradle.language.nativeplatform.internal.Names;
+import org.gradle.language.nativeplatform.internal.PublicationAwareComponent;
 import org.gradle.nativeplatform.TargetMachine;
 import org.gradle.util.ConfigureUtil;
 
@@ -40,16 +39,16 @@ import javax.inject.Inject;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
-public class DefaultCMakeProject implements CMakeProject {
+public class DefaultCMakeProject implements CMakeProject, ComponentWithVariants, PublicationAwareComponent {
 
     private final ObjectFactory mObjectFactory;
 
     private final String name;
     private final DirectoryProperty sourceDir;
-    private final SetProperty<String> cmakeArgs;
+    private final ListProperty<String> cmakeArgs;
     private final Property<String> baseName;
     private final DefaultDomainObjectSet<SoftwareComponent> binaries;
-    private final NamedDomainObjectContainer<CMakeTarget> targets;
+    private final NamedDomainObjectContainer<CMakeTargetBuildVariant> targets;
     private final Project project;
     private final Provider<String> groupName;
     private final Provider<String> versionName;
@@ -63,12 +62,12 @@ public class DefaultCMakeProject implements CMakeProject {
         this.name = name;
         this.attributesFactory = attributesFactory;
         this.binaries = new DefaultDomainObjectSet<SoftwareComponent>(SoftwareComponent.class, decorator);
-        this.targets = project.container(CMakeTarget.class);
+        this.targets = project.container(CMakeTargetBuildVariant.class);
         this.project = project;
         this.names = Names.of(name);
         mObjectFactory = objectFactory;
         sourceDir = objectFactory.directoryProperty();
-        cmakeArgs = objectFactory.setProperty(String.class);
+        cmakeArgs = objectFactory.listProperty(String.class);
         baseName = objectFactory.property(String.class);
         groupName = project.provider(new Callable<String>(){
 
@@ -105,12 +104,11 @@ public class DefaultCMakeProject implements CMakeProject {
     }
 
     @Override
-    public SetProperty<String> getCmakeArgs() {
+    public ListProperty<String> getCmakeArgs() {
         return cmakeArgs;
     }
 
-    @Override
-    public NamedDomainObjectContainer<CMakeTarget> getTargets() {
+    public NamedDomainObjectContainer<CMakeTargetBuildVariant> getTargets() {
         return targets;
     }
 
@@ -134,8 +132,8 @@ public class DefaultCMakeProject implements CMakeProject {
         return this;
     }
 
-    public CMakeTarget target(String name, Closure c) {
-        final CMakeTarget newTarget = mObjectFactory.newInstance(CMakeTarget.class, name, project.container(SoftwareComponent.class));
+    public CMakeTargetBuildVariant target(String name, Closure c) {
+        final CMakeTargetBuildVariant newTarget = mObjectFactory.newInstance(CMakeTargetBuildVariant.class, this, name);
         ConfigureUtil.configure(c, newTarget);
 
         TargetMachine machine = newTarget.getMachine().get();
@@ -181,15 +179,7 @@ public class DefaultCMakeProject implements CMakeProject {
 
             Names headerName = Names.of(targetName.withPrefix("headers"));
 
-            Usage linkUsage = mObjectFactory.named(Usage.class, Usage.NATIVE_LINK);
-            AttributeContainerInternal linkAttributes = attributesFactory.mutable();
-            linkAttributes.attribute(Usage.USAGE_ATTRIBUTE, linkUsage);
-            DefaultUsageContext linkUsageContext = new DefaultUsageContext(versionName.get() + "Link", linkUsage, linkAttributes);
-
-
-            NativeVariantIdentity id = new NativeVariantIdentity(headerName.getName(), baseName, groupName, versionName, false, false, machine, linkUsageContext, null);
-
-            ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, headerName, id, getImplementationDependencies());
+            ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, headerName.getName(), baseName, groupName, versionName);
             exportHeaders.getIncludeDir().set(newTarget.getExportHeaders());
             exportHeaders.setTask(project.getTasks().create(headerName.getTaskName("zip"), Zip.class, task -> {
                 task.from(exportHeaders.getIncludeDir());
@@ -202,12 +192,6 @@ public class DefaultCMakeProject implements CMakeProject {
 
 
             binaries.add(exportHeaders);
-            project.getComponents().add(exportHeaders);
-
-            exportHeaders.getCompileElements().get().getArtifacts().add(new ArchivePublishArtifact(exportHeaders.getTask()));
-
-            newTarget.getBinaries().add(exportHeaders);
-
         }
 
         binaries.withType(CMakeStaticLibrary.class, new Action<CMakeStaticLibrary>() {
@@ -222,9 +206,9 @@ public class DefaultCMakeProject implements CMakeProject {
             }
         });
 
+
         targets.add(newTarget);
         return newTarget;
-
     }
 
     public CMakeStaticLibrary staticLib(String name, Closure c) {

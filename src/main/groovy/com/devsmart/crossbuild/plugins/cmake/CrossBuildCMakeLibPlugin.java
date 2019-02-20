@@ -43,12 +43,12 @@ class CrossBuildCMakeLibPlugin implements Plugin<Project> {
 
     private void addTargetMachinesToCMakeProject(final Project project, final SoftwareComponentContainer components) {
 
-        NamedDomainObjectContainer<CMakeTarget> buildTargets = (NamedDomainObjectContainer<CMakeTarget>) project.getExtensions().findByName("targets");
+        NamedDomainObjectContainer<CMakeTargetBuildVariant> buildTargets = (NamedDomainObjectContainer<CMakeTargetBuildVariant>) project.getExtensions().findByName("targets");
 
         components.withType(CMakeProject.class, component -> {
-            buildTargets.all(new Action<CMakeTarget>() {
+            buildTargets.all(new Action<CMakeTargetBuildVariant>() {
                 @Override
-                public void execute(CMakeTarget targetConfig) {
+                public void execute(CMakeTargetBuildVariant targetConfig) {
                     //component.getTargetMachines().add(targetConfig.getMachine());
                     //component.getCmakeArgs().addAll(targetConfig.getCmakeArgs());
                 }

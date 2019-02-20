@@ -2,44 +2,56 @@ package com.devsmart.crossbuild.plugins.cmake;
 
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
+import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.internal.component.UsageContext;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
+import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.nativeplatform.TargetMachine;
 
 import javax.inject.Inject;
 import java.util.List;
+import java.util.Set;
 
-public class CMakeTarget implements ComponentWithCMakeArgs {
+public class CMakeTargetBuildVariant implements CMakeProject {
 
+    private final CMakeProject parent;
     private final String name;
+    private final Names names;
     private final Property<TargetMachine> machine;
     private final ListProperty<String> cmakeArgs;
     private final DirectoryProperty installDir;
     private final DirectoryProperty buildDir;
     private final Property<String> generator;
     private final DirectoryProperty exportHeaders;
-    private final NamedDomainObjectContainer<SoftwareComponent> binaries;
     private Task configTask;
     private Task assembleTask;
     private Task installTask;
 
     @Inject
-    public CMakeTarget(String name, ObjectFactory objectFactory, NamedDomainObjectContainer<SoftwareComponent> binaries) {
+    public CMakeTargetBuildVariant(CMakeProject parent, String name, ObjectFactory objectFactory) {
+        this.parent = parent;
         this.name = name;
+        this.names = Names.of(name);
         this.machine = objectFactory.property(TargetMachine.class);
         this.cmakeArgs = objectFactory.listProperty(String.class).empty();
         this.installDir = objectFactory.directoryProperty();
         this.buildDir = objectFactory.directoryProperty();
         this.generator = objectFactory.property(String.class);
         this.exportHeaders = objectFactory.directoryProperty();
-        this.binaries = binaries;
     }
 
     public String getName() {
         return name;
+    }
+
+    @Override
+    public Names getNames() {
+        return names;
     }
 
     public Property<TargetMachine> getMachine() {
@@ -100,7 +112,14 @@ public class CMakeTarget implements ComponentWithCMakeArgs {
     }
 
 
-    public NamedDomainObjectContainer<SoftwareComponent> getBinaries() {
-        return binaries;
+    @Override
+    public DirectoryProperty getSourceDir() {
+        return null;
     }
+
+    @Override
+    public Set<? extends UsageContext> getUsages() {
+        return null;
+    }
+
 }

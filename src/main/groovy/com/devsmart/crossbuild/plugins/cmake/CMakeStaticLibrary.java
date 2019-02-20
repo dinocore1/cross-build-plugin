@@ -15,7 +15,7 @@ public abstract class CMakeStaticLibrary implements ComponentWithVariants, Compo
 
 
     private final String name;
-    private final List<CMakeTarget> targets;
+    private final List<CMakeTargetBuildVariant> targets;
     private final ListProperty<String> cmakeArgs;
     private final NamedDomainObjectContainer<SoftwareComponent> variants;
 
