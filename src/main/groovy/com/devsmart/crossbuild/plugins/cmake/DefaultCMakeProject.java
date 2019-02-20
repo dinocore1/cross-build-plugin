@@ -9,8 +9,10 @@ import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.ModuleIdentifier;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
+import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
@@ -32,12 +34,19 @@ import org.gradle.language.cpp.internal.NativeVariantIdentity;
 import org.gradle.language.internal.DefaultLibraryDependencies;
 import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.language.nativeplatform.internal.PublicationAwareComponent;
+import org.gradle.nativeplatform.MachineArchitecture;
+import org.gradle.nativeplatform.OperatingSystemFamily;
 import org.gradle.nativeplatform.TargetMachine;
 import org.gradle.util.ConfigureUtil;
 
 import javax.inject.Inject;
 import java.util.Set;
 import java.util.concurrent.Callable;
+
+import static org.gradle.language.cpp.CppBinary.DEBUGGABLE_ATTRIBUTE;
+import static org.gradle.language.cpp.CppBinary.OPTIMIZED_ATTRIBUTE;
+import static org.gradle.nativeplatform.MachineArchitecture.ARCHITECTURE_ATTRIBUTE;
+import static org.gradle.nativeplatform.OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE;
 
 public class DefaultCMakeProject implements CMakeProject, ComponentWithVariants, PublicationAwareComponent {
 
@@ -54,7 +63,6 @@ public class DefaultCMakeProject implements CMakeProject, ComponentWithVariants,
     private final Provider<String> versionName;
     private final Names names;
     private final DefaultLibraryDependencies dependencies;
-    private final Configuration apiElements;
     private final ImmutableAttributesFactory attributesFactory;
 
     @Inject
@@ -84,12 +92,40 @@ public class DefaultCMakeProject implements CMakeProject, ComponentWithVariants,
             }
         });
 
+        ConfigurationContainer configurations = project.getConfigurations();
+
         dependencies = objectFactory.newInstance(DefaultLibraryDependencies.class, getNames().withSuffix("implementation"), getNames().withSuffix("api"));
-        Usage apiUsage = objectFactory.named(Usage.class, Usage.C_PLUS_PLUS_API);
-        apiElements = project.getConfigurations().create(getNames().withSuffix("cppApiElements"));
-        apiElements.extendsFrom(dependencies.getApiDependencies());
-        apiElements.setCanBeResolved(false);
-        apiElements.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, apiUsage);
+
+        //From DefaultCppBinary
+        /*
+        Configuration includePathConfig = configurations.create(names.withPrefix("cppCompile"));
+        includePathConfig.setCanBeConsumed(false);
+        includePathConfig.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, Usage.C_PLUS_PLUS_API));
+        includePathConfig.getAttributes().attribute(DEBUGGABLE_ATTRIBUTE, identity.isDebuggable());
+        includePathConfig.getAttributes().attribute(OPTIMIZED_ATTRIBUTE, identity.isOptimized());
+        includePathConfig.getAttributes().attribute(OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE, identity.getTargetMachine().getOperatingSystemFamily());
+        includePathConfig.getAttributes().attribute(MachineArchitecture.ARCHITECTURE_ATTRIBUTE, identity.getTargetMachine().getArchitecture());
+        includePathConfig.extendsFrom(getImplementationDependencies());
+
+        Configuration nativeLink = configurations.create(names.withPrefix("nativeLink"));
+        nativeLink.setCanBeConsumed(false);
+        nativeLink.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, Usage.NATIVE_LINK));
+        nativeLink.getAttributes().attribute(DEBUGGABLE_ATTRIBUTE, identity.isDebuggable());
+        nativeLink.getAttributes().attribute(OPTIMIZED_ATTRIBUTE, identity.isOptimized());
+        nativeLink.getAttributes().attribute(OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE, identity.getTargetMachine().getOperatingSystemFamily());
+        nativeLink.getAttributes().attribute(MachineArchitecture.ARCHITECTURE_ATTRIBUTE, identity.getTargetMachine().getArchitecture());
+        nativeLink.extendsFrom(getImplementationDependencies());
+
+        Configuration nativeRuntime = configurations.create(names.withPrefix("nativeRuntime"));
+        nativeRuntime.setCanBeConsumed(false);
+        nativeRuntime.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, Usage.NATIVE_RUNTIME));
+        nativeRuntime.getAttributes().attribute(DEBUGGABLE_ATTRIBUTE, identity.isDebuggable());
+        nativeRuntime.getAttributes().attribute(OPTIMIZED_ATTRIBUTE, identity.isOptimized());
+        nativeRuntime.getAttributes().attribute(OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE, identity.getTargetMachine().getOperatingSystemFamily());
+        nativeRuntime.getAttributes().attribute(MachineArchitecture.ARCHITECTURE_ATTRIBUTE, identity.getTargetMachine().getArchitecture());
+        nativeRuntime.extendsFrom(getImplementationDependencies());
+        */
+
 
     }
 
@@ -139,6 +175,19 @@ public class DefaultCMakeProject implements CMakeProject, ComponentWithVariants,
         TargetMachine machine = newTarget.getMachine().get();
         Names targetName = Names.of(machine.getOperatingSystemFamily().getName()).append(machine.getArchitecture().getName());
 
+        Usage apiUsage = mObjectFactory.named(Usage.class, Usage.C_PLUS_PLUS_API);
+        Configuration includePathConfig = project.getConfigurations().create(targetName.withPrefix("cppCompile"));
+        includePathConfig.setCanBeConsumed(false);
+        includePathConfig.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, apiUsage);
+        includePathConfig.getAttributes().attribute(DEBUGGABLE_ATTRIBUTE, false);
+        includePathConfig.getAttributes().attribute(OPTIMIZED_ATTRIBUTE, true);
+        includePathConfig.getAttributes().attribute(OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE, machine.getOperatingSystemFamily());
+        includePathConfig.getAttributes().attribute(MachineArchitecture.ARCHITECTURE_ATTRIBUTE, machine.getArchitecture());
+        includePathConfig.extendsFrom(getImplementationDependencies());
+
+        newTarget.setIncludePathConfiguration(includePathConfig);
+        newTarget.setApiUsageContext(new DefaultUsageContext(targetName + "Api", apiUsage, includePathConfig.getAttributes()));
+
         DirectoryProperty targetBuildDir = mObjectFactory.directoryProperty();
         targetBuildDir.set(project.getLayout().getBuildDirectory().dir(targetName.getDirName()));
 
@@ -179,7 +228,7 @@ public class DefaultCMakeProject implements CMakeProject, ComponentWithVariants,
 
             Names headerName = Names.of(targetName.withPrefix("headers"));
 
-            ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, headerName.getName(), baseName, groupName, versionName);
+            ExportHeaders exportHeaders = mObjectFactory.newInstance(ExportHeaders.class, headerName.getName(), baseName, groupName, versionName, newTarget.getApiUsageContext());
             exportHeaders.getIncludeDir().set(newTarget.getExportHeaders());
             exportHeaders.setTask(project.getTasks().create(headerName.getTaskName("zip"), Zip.class, task -> {
                 task.from(exportHeaders.getIncludeDir());
@@ -190,7 +239,9 @@ public class DefaultCMakeProject implements CMakeProject, ComponentWithVariants,
 
             }));
 
+            exportHeaders.getApiElements().set(includePathConfig);
 
+            includePathConfig.getOutgoing().artifact(exportHeaders.getTask());
             binaries.add(exportHeaders);
         }
 

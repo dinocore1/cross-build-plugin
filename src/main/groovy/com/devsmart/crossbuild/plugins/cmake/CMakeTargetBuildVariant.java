@@ -2,20 +2,30 @@ package com.devsmart.crossbuild.plugins.cmake;
 
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.component.ComponentWithVariants;
 import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.internal.attributes.ImmutableAttributesFactory;
 import org.gradle.api.internal.component.UsageContext;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.language.cpp.internal.DefaultUsageContext;
 import org.gradle.language.nativeplatform.internal.Names;
 import org.gradle.nativeplatform.TargetMachine;
 
 import javax.inject.Inject;
 import java.util.List;
 import java.util.Set;
+
+import static org.gradle.language.cpp.CppBinary.DEBUGGABLE_ATTRIBUTE;
+import static org.gradle.language.cpp.CppBinary.OPTIMIZED_ATTRIBUTE;
+import static org.gradle.nativeplatform.MachineArchitecture.ARCHITECTURE_ATTRIBUTE;
+import static org.gradle.nativeplatform.OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE;
 
 public class CMakeTargetBuildVariant implements CMakeProject {
 
@@ -31,9 +41,11 @@ public class CMakeTargetBuildVariant implements CMakeProject {
     private Task configTask;
     private Task assembleTask;
     private Task installTask;
+    private UsageContext apiUsageContext;
+    private Configuration includePathConfiguration;
 
     @Inject
-    public CMakeTargetBuildVariant(CMakeProject parent, String name, ObjectFactory objectFactory) {
+    public CMakeTargetBuildVariant(CMakeProject parent, String name, ObjectFactory objectFactory, ImmutableAttributesFactory attributesFactory) {
         this.parent = parent;
         this.name = name;
         this.names = Names.of(name);
@@ -52,6 +64,14 @@ public class CMakeTargetBuildVariant implements CMakeProject {
     @Override
     public Names getNames() {
         return names;
+    }
+
+    public UsageContext getApiUsageContext() {
+        return apiUsageContext;
+    }
+
+    public void setApiUsageContext(UsageContext context) {
+        this.apiUsageContext = context;
     }
 
     public Property<TargetMachine> getMachine() {
@@ -122,4 +142,11 @@ public class CMakeTargetBuildVariant implements CMakeProject {
         return null;
     }
 
+    public void setIncludePathConfiguration(Configuration includePathConfig) {
+        this.includePathConfiguration = includePathConfig;
+    }
+
+    public Configuration getIncludePathConfiguration() {
+        return this.includePathConfiguration;
+    }
 }

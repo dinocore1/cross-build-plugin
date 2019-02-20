@@ -12,9 +12,11 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.language.cpp.internal.DefaultUsageContext;
 import org.gradle.util.GUtil;
 
 import javax.inject.Inject;
+import java.util.Collections;
 import java.util.Set;
 
 public class ExportHeaders implements PublishableComponent, ComponentWithCoordinates, SoftwareComponentInternal {
@@ -23,21 +25,25 @@ public class ExportHeaders implements PublishableComponent, ComponentWithCoordin
 
     private final DirectoryProperty includeDir;
 
-    private final Property<Configuration> compileElements;
+    private final Property<Configuration> apiElements;
     private final Provider<String> baseName;
     private final Provider<String> group;
     private final Provider<String> version;
+    private final UsageContext usageContext;
+
+
     private Zip zipHeadersTask;
 
 
     @Inject
-    public ExportHeaders(String name, Provider<String> baseName, Provider<String> group, Provider<String> version, ObjectFactory objectFactory) {
+    public ExportHeaders(String name, Provider<String> baseName, Provider<String> group, Provider<String> version, UsageContext usageContext, ObjectFactory objectFactory) {
         this.name = name;
         this.baseName = baseName;
         this.group = group;
         this.version = version;
+        this.usageContext = usageContext;
+        this.apiElements = objectFactory.property(Configuration.class);
         this.includeDir = objectFactory.directoryProperty();
-        this.compileElements = objectFactory.property(Configuration.class);
     }
 
     @Override
@@ -63,9 +69,13 @@ public class ExportHeaders implements PublishableComponent, ComponentWithCoordin
         return DefaultModuleVersionIdentifier.newId(group.get(), baseName.get() + "_" + GUtil.toWords(name, '_'), version.get());
     }
 
+    public Property<Configuration> getApiElements() {
+        return apiElements;
+    }
 
     @Override
     public Set<? extends UsageContext> getUsages() {
-        return null;
+        Configuration apiElementsConfig = apiElements.get();
+        return Collections.singleton(new DefaultUsageContext(usageContext, apiElementsConfig.getAllArtifacts(), apiElementsConfig));
     }
 }
